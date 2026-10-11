@@ -13,6 +13,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pipeline  # noqa: E402,F401
 
 
+def test_dedupe_keeps_first_duplicate():
+    events = [
+        {"event_id": "E08", "value": "first", "note": "original"},
+        {"event_id": "E08", "value": "different", "note": "duplicate"},
+        {"event_id": "E09", "value": "other", "note": ""},
+    ]
+
+    assert pipeline.dedupe(events) == [events[0], events[2]]
+
+
 def test_duplicate_replay():
     """Replaying the full input must not add new history rows.
 

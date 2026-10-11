@@ -19,12 +19,23 @@ DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
 
 HISTORY_COLUMNS = [
-    "event_id", "decision_id", "day", "type", "value", "evidence",
-    "disposition", "reason",
+    "event_id",
+    "decision_id",
+    "day",
+    "type",
+    "value",
+    "evidence",
+    "disposition",
+    "reason",
 ]
 QUEUE_COLUMNS = [
-    "decision_id", "approval_state", "execution_state", "latest_accepted_grade",
-    "evidence_quality", "outcome_state", "next_step",
+    "decision_id",
+    "approval_state",
+    "execution_state",
+    "latest_accepted_grade",
+    "evidence_quality",
+    "outcome_state",
+    "next_step",
 ]
 
 
@@ -47,12 +58,14 @@ def load_events(path: Path) -> list[dict]:
 
 
 def dedupe(events: list[dict]) -> list[dict]:
-    """Return events with one row per event_id.
-
-    TODO: decide and document which copy wins when duplicates differ.
-    Replaying the full input must not add new history rows.
-    """
-    raise NotImplementedError
+    """Return one row per event_id, keeping the first copy encountered."""
+    seen = set()
+    unique_events = []
+    for event in events:
+        if event["event_id"] not in seen:
+            seen.add(event["event_id"])
+            unique_events.append(event)
+    return unique_events
 
 
 def sort_events(events: list[dict]) -> list[dict]:
@@ -63,8 +76,9 @@ def sort_events(events: list[dict]) -> list[dict]:
     raise NotImplementedError
 
 
-def build_history(decisions: dict[str, dict], events: list[dict],
-                  assessment_day: int = ASSESSMENT_DAY) -> list[dict]:
+def build_history(
+    decisions: dict[str, dict], events: list[dict], assessment_day: int = ASSESSMENT_DAY
+) -> list[dict]:
     """Classify every (deduped, sorted) event into a history row.
 
     Each row has HISTORY_COLUMNS; disposition is one of accepted / review / note,
@@ -74,8 +88,11 @@ def build_history(decisions: dict[str, dict], events: list[dict],
     raise NotImplementedError
 
 
-def build_review_queue(decisions: dict[str, dict], history: list[dict],
-                       assessment_day: int = ASSESSMENT_DAY) -> list[dict]:
+def build_review_queue(
+    decisions: dict[str, dict],
+    history: list[dict],
+    assessment_day: int = ASSESSMENT_DAY,
+) -> list[dict]:
     """Fold history into one latest-state row per decision (QUEUE_COLUMNS).
 
     Every decision in decisions.csv appears, including ones with no events.
@@ -93,7 +110,9 @@ def write_csv(rows: list[dict], columns: list[str], path: Path) -> None:
     raise NotImplementedError
 
 
-def run(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> tuple[list[dict], list[dict]]:
+def run(
+    data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR
+) -> tuple[list[dict], list[dict]]:
     """Run the full pipeline and return (history, queue).
 
     TODO: load -> dedupe -> sort -> build_history -> build_review_queue -> write.
