@@ -1,0 +1,7 @@
+id,action,maturity_day,expected_metric
+D1,hold,7,contribution
+D2,reduce,7,contribution
+D3,test,14,contribution
+D4,hold,7,contribution
+D5,reduce,7,contribution
+D6,investigate,7,contribution
