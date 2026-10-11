@@ -18,7 +18,7 @@ Requires Python 3.10+ and pytest. Run `python3 pipeline.py` to generate outputs.
 
 ## Tests
 
-`python3 -m pytest -q`: 14 passed. Duplicate replay: pass. D3 early grade: pass. D2 partial execution: pass. D1 correction history: pass.
+`python3 -m pytest -q`: 18 passed. Duplicate replay: pass. D3 early grade: pass. D2 partial execution: pass. D1 correction history: pass.
 
 ## Time spent
 
