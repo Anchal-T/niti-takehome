@@ -198,13 +198,74 @@ def build_review_queue(
     history: list[dict],
     assessment_day: int = ASSESSMENT_DAY,
 ) -> list[dict]:
-    """Fold history into one latest-state row per decision (QUEUE_COLUMNS).
+    """Fold history into one latest-state row per decision."""
+    states = {
+        decision_id: {
+            "approval_state": "not_recorded",
+            "execution_state": "not_recorded",
+            "latest_accepted_grade": "",
+            "evidence_quality": "",
+        }
+        for decision_id in decisions
+    }
 
-    Every decision in decisions.csv appears, including ones with no events.
-    TODO: approval/execution states, latest accepted grade, evidence_quality,
-    outcome_state (in the brief's order), next_step.
-    """
-    raise NotImplementedError
+    for event in history:
+        decision_id = event.get("decision_id")
+        if not isinstance(decision_id, str):
+            continue
+        state = states.get(decision_id)
+        if state is None or event.get("disposition") != "accepted":
+            continue
+
+        match event.get("type"):
+            case "approval":
+                state["approval_state"] = event.get("value", "")
+            case "execution":
+                state["execution_state"] = event.get("value", "")
+            case "grade" | "grade_correction":
+                if event.get("reason", "").startswith("superseded_by:"):
+                    continue
+                parts = event.get("value", "").split("|")
+                if len(parts) == 2:
+                    state["latest_accepted_grade"] = parts[0].strip()
+                    state["evidence_quality"] = parts[1].strip()
+
+    queue = []
+    next_steps = {
+        "partial": "complete execution",
+        "not_executed": "record approval/execution",
+        "too_early": "await maturity",
+        "no_grade": "collect grade",
+        "graded": "monitor",
+    }
+    for decision_id, decision in decisions.items():
+        state = states[decision_id]
+        try:
+            maturity_day = int(decision.get("maturity_day", ""))
+        except (TypeError, ValueError):
+            maturity_day = None
+
+        if state["execution_state"] == "partial":
+            outcome_state = "partial"
+        elif state["execution_state"] != "full":
+            outcome_state = "not_executed"
+        elif maturity_day is not None and assessment_day < maturity_day:
+            outcome_state = "too_early"
+        elif not state["latest_accepted_grade"]:
+            outcome_state = "no_grade"
+        else:
+            outcome_state = "graded"
+
+        queue.append(
+            {
+                "decision_id": decision_id,
+                **state,
+                "outcome_state": outcome_state,
+                "next_step": next_steps[outcome_state],
+            }
+        )
+
+    return queue
 
 
 def write_csv(rows: list[dict], columns: list[str], path: Path) -> None:

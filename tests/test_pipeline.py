@@ -6,11 +6,9 @@ Run: python3 -m pytest -v
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pipeline  # noqa: E402,F401
+import pipeline
 
 
 def test_dedupe_keeps_first_duplicate():
@@ -168,40 +166,122 @@ def test_grade_requires_earlier_full_execution_and_valid_value():
 
 
 def test_duplicate_replay():
-    """Replaying the full input must not add new history rows.
+    decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
+    events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")
 
-    Must assert: history built from events (incl. the duplicated E08) has exactly
-    one row per event_id, and running again / feeding the events twice produces
-    an identical history (same row count, same rows).
-    """
-    pytest.skip("TODO")
+    first_run = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events))
+    )
+    replay = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events + events))
+    )
+
+    assert first_run == replay
+    assert len(first_run) == len({row["event_id"] for row in first_run})
 
 
 def test_d3_early_grade():
-    """D3's grade arrives before maturity_day.
+    decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
+    events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")
+    history = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events))
+    )
+    queue = pipeline.build_review_queue(decisions, history)
+    early_grade = next(row for row in history if row["event_id"] == "E07")
+    d3 = next(row for row in queue if row["decision_id"] == "D3")
 
-    Must assert: E07 is preserved in history with disposition 'review' (and a reason),
-    its grade is NOT used as D3's latest_accepted_grade, and D3's outcome_state
-    follows the brief's ordering.
-    """
-    pytest.skip("TODO")
+    assert early_grade["disposition"] == "review"
+    assert early_grade["reason"] == "grade_before_maturity"
+    assert d3["approval_state"] == "not_recorded"
+    assert d3["latest_accepted_grade"] == ""
+    assert d3["outcome_state"] == "too_early"
 
 
 def test_d2_partial_execution():
-    """D2 was approved but only partially executed.
+    decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
+    events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")
+    history = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events))
+    )
+    d2 = next(
+        row
+        for row in pipeline.build_review_queue(decisions, history)
+        if row["decision_id"] == "D2"
+    )
 
-    Must assert: D2's execution_state reflects the partial execution, outcome_state is
-    derived per the brief's order (partial first), approval alone does not
-    produce a grade/success, and no outcome is invented.
-    """
-    pytest.skip("TODO")
+    assert d2["approval_state"] == "approved"
+    assert d2["execution_state"] == "partial"
+    assert d2["latest_accepted_grade"] == ""
+    assert d2["outcome_state"] == "partial"
+
+
+def test_review_queue_uses_latest_execution_and_outcome_order():
+    decisions = {
+        "D1": {"id": "D1", "maturity_day": 1},
+        "D2": {"id": "D2", "maturity_day": 1},
+        "D3": {"id": "D3", "maturity_day": 14},
+        "D4": {"id": "D4", "maturity_day": 1},
+    }
+    events = pipeline.sort_events(
+        [
+            {
+                "event_id": "E01",
+                "decision_id": "D1",
+                "day": "1",
+                "type": "execution",
+                "value": "full",
+            },
+            {
+                "event_id": "E02",
+                "decision_id": "D1",
+                "day": "2",
+                "type": "execution",
+                "value": "partial",
+            },
+            {
+                "event_id": "E03",
+                "decision_id": "D2",
+                "day": "1",
+                "type": "execution",
+                "value": "full",
+            },
+            {
+                "event_id": "E04",
+                "decision_id": "D3",
+                "day": "1",
+                "type": "execution",
+                "value": "full",
+            },
+        ]
+    )
+
+    history = pipeline.build_history(decisions, events)
+    queue = {
+        row["decision_id"]: row
+        for row in pipeline.build_review_queue(decisions, history)
+    }
+
+    assert queue["D1"]["execution_state"] == "partial"
+    assert queue["D1"]["outcome_state"] == "partial"
+    assert queue["D2"]["outcome_state"] == "no_grade"
+    assert queue["D3"]["outcome_state"] == "too_early"
+    assert queue["D4"]["execution_state"] == "not_recorded"
+    assert queue["D4"]["outcome_state"] == "not_executed"
 
 
 def test_d1_correction_history():
-    """D1 has a grade (E03) later corrected (E08).
+    decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
+    events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")
+    history = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events))
+    )
+    queue = pipeline.build_review_queue(decisions, history)
+    d1 = next(row for row in queue if row["decision_id"] == "D1")
+    e03 = next(row for row in history if row["event_id"] == "E03")
+    e08 = next(row for row in history if row["event_id"] == "E08")
 
-    Must assert: both E03 and E08 remain visible in history (append-only, ordered by
-    day then event_id), E03 is marked as superseded rather than deleted, and D1's
-    latest_accepted_grade in the queue comes from the correction.
-    """
-    pytest.skip("TODO")
+    assert history.index(e03) < history.index(e08)
+    assert e03["reason"] == "superseded_by:E08"
+    assert e08["reason"] == "supersedes:E03"
+    assert d1["latest_accepted_grade"] == "neutral"
+    assert d1["evidence_quality"] == "observational"
