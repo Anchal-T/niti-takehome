@@ -3,12 +3,42 @@
 Run: python3 -m pytest -v
 """
 
+import csv
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pipeline
+
+
+def test_write_csv_creates_parent_and_blanks_missing_values(tmp_path):
+    path = tmp_path / "nested" / "output.csv"
+
+    pipeline.write_csv([{"first": "value"}, {"first": None}], ["first", "second"], path)
+
+    with path.open(newline="", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    assert rows == [
+        {"first": "value", "second": ""},
+        {"first": "", "second": ""},
+    ]
+
+
+def test_run_writes_repeatable_outputs(tmp_path):
+    output_dir = tmp_path / "results"
+
+    first_history, first_queue = pipeline.run(output_dir=output_dir)
+    history_text = (output_dir / "history.csv").read_text(encoding="utf-8")
+    queue_text = (output_dir / "queue.csv").read_text(encoding="utf-8")
+    second_history, second_queue = pipeline.run(output_dir=output_dir)
+
+    assert first_history == second_history
+    assert first_queue == second_queue
+    assert (output_dir / "history.csv").read_text(encoding="utf-8") == history_text
+    assert (output_dir / "queue.csv").read_text(encoding="utf-8") == queue_text
+    assert len(first_history) == 9
+    assert len(first_queue) == 6
 
 
 def test_dedupe_keeps_first_duplicate():

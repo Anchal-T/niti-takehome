@@ -269,21 +269,26 @@ def build_review_queue(
 
 
 def write_csv(rows: list[dict], columns: list[str], path: Path) -> None:
-    """Write rows to path as CSV with the given column order.
-
-    TODO: create parent dir if needed; write blanks for missing values.
-    """
-    raise NotImplementedError
+    """Write rows to CSV with the given column order."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def run(
     data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR
 ) -> tuple[list[dict], list[dict]]:
-    """Run the full pipeline and return (history, queue).
+    """Run the full pipeline, write both CSV outputs, and return them."""
+    decisions = load_decisions(data_dir / "decisions.csv")
+    events = sort_events(dedupe(load_events(data_dir / "events.csv")))
+    history = build_history(decisions, events)
+    queue = build_review_queue(decisions, history)
 
-    TODO: load -> dedupe -> sort -> build_history -> build_review_queue -> write.
-    """
-    raise NotImplementedError
+    write_csv(history, HISTORY_COLUMNS, output_dir / "history.csv")
+    write_csv(queue, QUEUE_COLUMNS, output_dir / "queue.csv")
+    return history, queue
 
 
 def main() -> None:
