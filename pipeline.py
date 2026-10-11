@@ -55,12 +55,18 @@ def load_decisions(path: Path) -> dict[str, dict]:
     """Read decisions.csv, keyed by id; parse valid maturity days as integers."""
     decisions = {}
     for row in _read_csv_rows(path):
+        decision_id = row.get("id", "")
+        if not decision_id:
+            raise ValueError(f"{path}: missing decision id")
+        if decision_id in decisions:
+            raise ValueError(f"{path}: duplicate decision id {decision_id!r}")
+
         maturity_day = row.get("maturity_day", "")
         try:
             row["maturity_day"] = int(maturity_day)
         except ValueError:
             row["maturity_day"] = maturity_day
-        decisions[row.get("id", "")] = row
+        decisions[decision_id] = row
     return decisions
 
 

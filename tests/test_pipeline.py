@@ -9,6 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pytest
+
 import pipeline
 
 
@@ -103,6 +105,30 @@ def test_load_decisions_trims_and_parses_maturity_day(tmp_path):
         "expected_metric": "contribution",
     }
     assert decisions["D2"]["maturity_day"] == "unknown"
+
+
+def test_load_decisions_rejects_missing_id(tmp_path):
+    path = tmp_path / "decisions.csv"
+    path.write_text(
+        "id,action,maturity_day,expected_metric\n,hold,7,contribution\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="missing decision id"):
+        pipeline.load_decisions(path)
+
+
+def test_load_decisions_rejects_duplicate_id(tmp_path):
+    path = tmp_path / "decisions.csv"
+    path.write_text(
+        "id,action,maturity_day,expected_metric\n"
+        "D1,hold,7,contribution\n"
+        "D1,reduce,1,contribution\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate decision id 'D1'"):
+        pipeline.load_decisions(path)
 
 
 def test_load_decisions_missing_maturity_column(tmp_path):
