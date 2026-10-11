@@ -41,14 +41,48 @@ def test_run_writes_repeatable_outputs(tmp_path):
     assert len(first_queue) == 6
 
 
-def test_dedupe_keeps_first_duplicate():
+def test_dedupe_keeps_first_duplicate_and_preserves_missing_ids():
     events = [
         {"event_id": "E08", "value": "first", "note": "original"},
         {"event_id": "E08", "value": "different", "note": "duplicate"},
         {"event_id": "E09", "value": "other", "note": ""},
+        {"value": "missing id"},
+        {"event_id": " ", "value": "blank id"},
     ]
 
-    assert pipeline.dedupe(events) == [events[0], events[2]]
+    assert pipeline.dedupe(events) == [events[0], events[2], events[3], events[4]]
+
+
+def test_events_without_ids_are_kept_for_review():
+    decisions = {"D1": {"id": "D1", "maturity_day": 1}}
+    events = pipeline.sort_events(
+        pipeline.dedupe(
+            [
+                {
+                    "decision_id": "D1",
+                    "day": "1",
+                    "type": "approval",
+                    "value": "approved",
+                },
+                {
+                    "event_id": "",
+                    "decision_id": "D1",
+                    "day": "2",
+                    "type": "execution",
+                    "value": "full",
+                },
+            ]
+        )
+    )
+
+    history = pipeline.build_history(decisions, events)
+
+    assert len(history) == 2
+    assert [row["disposition"] for row in history] == ["review", "review"]
+    assert [row["reason"] for row in history] == [
+        "missing_event_id",
+        "missing_event_id",
+    ]
 
 
 def test_load_decisions_trims_and_parses_maturity_day(tmp_path):

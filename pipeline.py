@@ -74,8 +74,11 @@ def dedupe(events: list[dict]) -> list[dict]:
     seen = set()
     unique_events = []
     for event in events:
-        if event["event_id"] not in seen:
-            seen.add(event["event_id"])
+        event_id = event.get("event_id")
+        if not isinstance(event_id, str) or not event_id.strip():
+            unique_events.append(event)
+        elif event_id.strip() not in seen:
+            seen.add(event_id.strip())
             unique_events.append(event)
     return unique_events
 
@@ -84,11 +87,13 @@ def sort_events(events: list[dict]) -> list[dict]:
     """Sort by numeric day, then event_id; place malformed days last."""
 
     def sort_key(event: dict) -> tuple[int, int, str]:
+        event_id = event.get("event_id", "")
+        event_id = event_id.strip() if isinstance(event_id, str) else ""
         try:
             day = int(event.get("day", ""))
         except (TypeError, ValueError):
-            return (1, 0, event.get("event_id", ""))
-        return (0, day, event.get("event_id", ""))
+            return (1, 0, event_id)
+        return (0, day, event_id)
 
     return sorted(events, key=sort_key)
 
@@ -137,7 +142,9 @@ def build_history(
         except (TypeError, ValueError):
             day = None
 
-        if decision_id not in decisions:
+        if not isinstance(event_id, str) or not event_id.strip():
+            reason = "missing_event_id"
+        elif decision_id not in decisions:
             reason = "unknown_decision"
         elif day is None:
             reason = "invalid_day"
