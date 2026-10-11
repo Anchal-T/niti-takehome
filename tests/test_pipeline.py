@@ -1,4 +1,4 @@
-"""The four tests required by the brief. Fill in the bodies yourself.
+"""Tests for the evidence-to-review pipeline.
 
 Run: python3 -m pytest -v
 """
