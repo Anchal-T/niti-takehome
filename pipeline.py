@@ -93,16 +93,104 @@ def sort_events(events: list[dict]) -> list[dict]:
     return sorted(events, key=sort_key)
 
 
+def _grade_review_reason(
+    value: object,
+    day: int,
+    decision: dict,
+    assessment_day: int,
+    full_execution_days: list[int],
+) -> str | None:
+    parts = value.split("|") if isinstance(value, str) else []
+    if len(parts) != 2 or not all(part.strip() for part in parts):
+        return "invalid_grade_value"
+    if day > assessment_day:
+        return "event_after_assessment"
+    try:
+        maturity_day = int(decision.get("maturity_day", ""))
+    except (TypeError, ValueError):
+        return "invalid_maturity_day"
+    if day < maturity_day:
+        return "grade_before_maturity"
+    if not any(execution_day < day for execution_day in full_execution_days):
+        return "execution_not_previously_full"
+    return None
+
+
 def build_history(
     decisions: dict[str, dict], events: list[dict], assessment_day: int = ASSESSMENT_DAY
 ) -> list[dict]:
-    """Classify every (deduped, sorted) event into a history row.
+    """Classify deduped, sorted events while keeping superseded grades visible."""
+    history = []
+    full_execution_days = {}
+    latest_grade_index = {}
 
-    Each row has HISTORY_COLUMNS; disposition is one of accepted / review / note,
-    with a short reason. Grades are append-only: superseded grades stay visible.
-    TODO: implement the rules from BRIEF.md (see PLAN.md section 3).
-    """
-    raise NotImplementedError
+    for event in events:
+        row = {column: event.get(column, "") for column in HISTORY_COLUMNS[:6]}
+        event_id = row["event_id"]
+        decision_id = row["decision_id"]
+        event_type = row["type"]
+        value = row["value"]
+        disposition = "review"
+
+        try:
+            day = int(row["day"])
+        except (TypeError, ValueError):
+            day = None
+
+        if decision_id not in decisions:
+            reason = "unknown_decision"
+        elif day is None:
+            reason = "invalid_day"
+        else:
+            match event_type:
+                case "approval":
+                    if value == "approved":
+                        disposition, reason = "accepted", "valid_approval"
+                    else:
+                        reason = "unsupported_value"
+                case "execution":
+                    if value not in {"full", "partial"}:
+                        reason = "unsupported_value"
+                    else:
+                        disposition, reason = "accepted", "valid_execution"
+                        if value == "full":
+                            full_execution_days.setdefault(decision_id, []).append(day)
+                case "note":
+                    if value == "none":
+                        disposition, reason = "note", "free_text_ignored"
+                    else:
+                        reason = "unsupported_value"
+                case "grade" | "grade_correction":
+                    reason = _grade_review_reason(
+                        value,
+                        day,
+                        decisions[decision_id],
+                        assessment_day,
+                        full_execution_days.get(decision_id, []),
+                    )
+                    previous_index = latest_grade_index.get(decision_id)
+                    if reason is None and event_type == "grade_correction":
+                        if previous_index is None:
+                            reason = "correction_without_accepted_grade"
+                        else:
+                            previous_id = history[previous_index]["event_id"]
+                            history[previous_index]["reason"] = (
+                                f"superseded_by:{event_id}"
+                            )
+                            reason = f"supersedes:{previous_id}"
+                            disposition = "accepted"
+                    elif reason is None:
+                        disposition, reason = "accepted", "eligible"
+                    if disposition == "accepted":
+                        latest_grade_index[decision_id] = len(history)
+                case _:
+                    reason = "unsupported_type"
+
+        row["disposition"] = disposition
+        row["reason"] = reason
+        history.append(row)
+
+    return history
 
 
 def build_review_queue(

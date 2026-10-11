@@ -88,6 +88,85 @@ def test_sort_events_numeric_day_then_id_with_malformed_days_last():
     assert events[0]["event_id"] == "E10"
 
 
+def test_build_history_sample_correction_and_note():
+    decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
+    events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")
+    history = pipeline.build_history(
+        decisions, pipeline.sort_events(pipeline.dedupe(events))
+    )
+    by_id = {row["event_id"]: row for row in history}
+
+    assert len(history) == 9
+    assert by_id["E03"]["disposition"] == "accepted"
+    assert by_id["E03"]["reason"] == "superseded_by:E08"
+    assert by_id["E08"]["disposition"] == "accepted"
+    assert by_id["E08"]["reason"] == "supersedes:E03"
+    assert by_id["E07"]["disposition"] == "review"
+    assert by_id["E07"]["reason"] == "grade_before_maturity"
+    assert by_id["E09"]["disposition"] == "note"
+
+
+def test_grade_requires_earlier_full_execution_and_valid_value():
+    decisions = {
+        "D1": {"id": "D1", "maturity_day": 1},
+        "D2": {"id": "D2", "maturity_day": 1},
+    }
+    events = pipeline.sort_events(
+        [
+            {
+                "event_id": "E01",
+                "decision_id": "D1",
+                "day": "2",
+                "type": "execution",
+                "value": "full",
+            },
+            {
+                "event_id": "E02",
+                "decision_id": "D1",
+                "day": "2",
+                "type": "grade",
+                "value": "favorable|observational",
+            },
+            {
+                "event_id": "E03",
+                "decision_id": "D1",
+                "day": "3",
+                "type": "grade",
+                "value": "favorable|observational",
+            },
+            {
+                "event_id": "E04",
+                "decision_id": "D1",
+                "day": "4",
+                "type": "grade",
+                "value": "favorable|",
+            },
+            {
+                "event_id": "E05",
+                "decision_id": "D2",
+                "day": "2",
+                "type": "grade",
+                "value": "favorable|observational",
+            },
+            {
+                "event_id": "E06",
+                "decision_id": "D2",
+                "day": "3",
+                "type": "execution",
+                "value": "full",
+            },
+        ]
+    )
+
+    history = pipeline.build_history(decisions, events)
+    by_id = {row["event_id"]: row for row in history}
+
+    assert by_id["E02"]["reason"] == "execution_not_previously_full"
+    assert by_id["E03"]["disposition"] == "accepted"
+    assert by_id["E04"]["reason"] == "invalid_grade_value"
+    assert by_id["E05"]["reason"] == "execution_not_previously_full"
+
+
 def test_duplicate_replay():
     """Replaying the full input must not add new history rows.
 
