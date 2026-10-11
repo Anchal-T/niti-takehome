@@ -67,6 +67,27 @@ def test_load_events_trims_fields_and_keeps_input_order(tmp_path):
     assert events[1]["note"] == "note text"
 
 
+def test_sort_events_numeric_day_then_id_with_malformed_days_last():
+    events = [
+        {"event_id": "E10", "day": "10"},
+        {"event_id": "E2B", "day": "2"},
+        {"event_id": "Ebad2", "day": "invalid"},
+        {"event_id": "E2A", "day": "2"},
+        {"event_id": "Ebad1"},
+    ]
+
+    sorted_events = pipeline.sort_events(events)
+
+    assert [event["event_id"] for event in sorted_events] == [
+        "E2A",
+        "E2B",
+        "E10",
+        "Ebad1",
+        "Ebad2",
+    ]
+    assert events[0]["event_id"] == "E10"
+
+
 def test_duplicate_replay():
     """Replaying the full input must not add new history rows.
 

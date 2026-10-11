@@ -81,11 +81,16 @@ def dedupe(events: list[dict]) -> list[dict]:
 
 
 def sort_events(events: list[dict]) -> list[dict]:
-    """Order events by day (as int) then event_id.
+    """Sort by numeric day, then event_id; place malformed days last."""
 
-    TODO: decide how events with a malformed day are ordered.
-    """
-    raise NotImplementedError
+    def sort_key(event: dict) -> tuple[int, int, str]:
+        try:
+            day = int(event.get("day", ""))
+        except (TypeError, ValueError):
+            return (1, 0, event.get("event_id", ""))
+        return (0, day, event.get("event_id", ""))
+
+    return sorted(events, key=sort_key)
 
 
 def build_history(
