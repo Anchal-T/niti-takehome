@@ -22,7 +22,7 @@ Requires Python 3.10+ and pytest. Run `python3 pipeline.py` to generate outputs.
 
 ## Time spent
 
-Around 2 and half hours were spent on this project.
+Around 3 hours were spent on this project.
 
 ## Known gaps
 
