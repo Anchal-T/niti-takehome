@@ -1,0 +1,10 @@
+event_id,decision_id,day,type,value,evidence,disposition,reason
+E01,D1,1,approval,approved,S01,accepted,valid_approval
+E04,D2,1,approval,approved,S04,accepted,valid_approval
+E06,D3,1,execution,full,S06,accepted,valid_execution
+E02,D1,2,execution,full,S02,accepted,valid_execution
+E05,D2,2,execution,partial,S05,accepted,valid_execution
+E09,D4,2,note,none,S09,note,free_text_ignored
+E07,D3,5,grade,favorable|observational,S07,review,grade_before_maturity
+E03,D1,8,grade,favorable|observational,S03,accepted,superseded_by:E08
+E08,D1,9,grade_correction,neutral|observational,S08,accepted,supersedes:E03

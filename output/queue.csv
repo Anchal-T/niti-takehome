@@ -1,0 +1,7 @@
+decision_id,approval_state,execution_state,latest_accepted_grade,evidence_quality,outcome_state,next_step
+D1,approved,full,neutral,observational,graded,monitor
+D2,approved,partial,,,partial,complete execution
+D3,not_recorded,full,,,too_early,await maturity
+D4,not_recorded,not_recorded,,,not_executed,record approval/execution
+D5,not_recorded,not_recorded,,,not_executed,record approval/execution
+D6,not_recorded,not_recorded,,,not_executed,record approval/execution
