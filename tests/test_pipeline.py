@@ -359,6 +359,62 @@ def test_review_queue_uses_latest_execution_and_outcome_order():
     assert queue["D4"]["outcome_state"] == "not_executed"
 
 
+def test_future_approval_and_execution_do_not_change_queue():
+    decisions = {
+        "D1": {"id": "D1", "maturity_day": 1},
+        "D2": {"id": "D2", "maturity_day": 1},
+    }
+    events = pipeline.sort_events(
+        [
+            {
+                "event_id": "E01",
+                "decision_id": "D1",
+                "day": "1",
+                "type": "approval",
+                "value": "approved",
+            },
+            {
+                "event_id": "E02",
+                "decision_id": "D1",
+                "day": "2",
+                "type": "execution",
+                "value": "full",
+            },
+            {
+                "event_id": "E03",
+                "decision_id": "D1",
+                "day": "11",
+                "type": "execution",
+                "value": "partial",
+            },
+            {
+                "event_id": "E04",
+                "decision_id": "D2",
+                "day": "11",
+                "type": "approval",
+                "value": "approved",
+            },
+        ]
+    )
+
+    history = pipeline.build_history(decisions, events)
+    queue = {
+        row["decision_id"]: row
+        for row in pipeline.build_review_queue(decisions, history)
+    }
+    future_events = [row for row in history if row["event_id"] in {"E03", "E04"}]
+
+    assert [row["reason"] for row in future_events] == [
+        "event_after_assessment",
+        "event_after_assessment",
+    ]
+    assert all(row["disposition"] == "review" for row in future_events)
+    assert queue["D1"]["execution_state"] == "full"
+    assert queue["D1"]["approval_state"] == "approved"
+    assert queue["D2"]["approval_state"] == "not_recorded"
+    assert queue["D2"]["execution_state"] == "not_recorded"
+
+
 def test_d1_correction_history():
     decisions = pipeline.load_decisions(pipeline.DATA_DIR / "decisions.csv")
     events = pipeline.load_events(pipeline.DATA_DIR / "events.csv")

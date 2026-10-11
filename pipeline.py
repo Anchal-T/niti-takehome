@@ -154,6 +154,8 @@ def build_history(
             reason = "unknown_decision"
         elif day is None:
             reason = "invalid_day"
+        elif event_type in {"approval", "execution"} and day > assessment_day:
+            reason = "event_after_assessment"
         else:
             match event_type:
                 case "approval":
