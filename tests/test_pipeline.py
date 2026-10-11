@@ -23,6 +23,50 @@ def test_dedupe_keeps_first_duplicate():
     assert pipeline.dedupe(events) == [events[0], events[2]]
 
 
+def test_load_decisions_trims_and_parses_maturity_day(tmp_path):
+    path = tmp_path / "decisions.csv"
+    path.write_text(
+        " id, action, maturity_day, expected_metric \n"
+        " D1, hold, 7, contribution \n"
+        " D2, reduce, unknown, contribution \n",
+        encoding="utf-8",
+    )
+
+    decisions = pipeline.load_decisions(path)
+
+    assert decisions["D1"] == {
+        "id": "D1",
+        "action": "hold",
+        "maturity_day": 7,
+        "expected_metric": "contribution",
+    }
+    assert decisions["D2"]["maturity_day"] == "unknown"
+
+
+def test_load_decisions_missing_maturity_column(tmp_path):
+    path = tmp_path / "decisions.csv"
+    path.write_text("id,action\nD1,hold\n", encoding="utf-8")
+
+    assert pipeline.load_decisions(path)["D1"]["maturity_day"] == ""
+
+
+def test_load_events_trims_fields_and_keeps_input_order(tmp_path):
+    path = tmp_path / "events.csv"
+    path.write_text(
+        " event_id, decision_id, day, type, value, evidence, note \n"
+        " E02, D1, 2, execution, full, S02, executed \n"
+        " E01, D1, malformed, grade, favorable|observational, S01, note text \n",
+        encoding="utf-8",
+    )
+
+    events = pipeline.load_events(path)
+
+    assert [event["event_id"] for event in events] == ["E02", "E01"]
+    assert events[0]["day"] == "2"
+    assert events[1]["day"] == "malformed"
+    assert events[1]["note"] == "note text"
+
+
 def test_duplicate_replay():
     """Replaying the full input must not add new history rows.
 

@@ -39,22 +39,34 @@ QUEUE_COLUMNS = [
 ]
 
 
-def load_decisions(path: Path) -> dict[str, dict]:
-    """Read decisions.csv and return {decision_id: row}.
+def _read_csv_rows(path: Path) -> list[dict]:
+    with path.open(newline="", encoding="utf-8") as file:
+        return [
+            {
+                key.strip(): (value or "").strip()
+                for key, value in row.items()
+                if key is not None
+            }
+            for row in csv.DictReader(file)
+        ]
 
-    Columns: id, action, maturity_day, expected_metric.
-    TODO: strip whitespace, parse maturity_day as int, handle malformed rows.
-    """
-    raise NotImplementedError
+
+def load_decisions(path: Path) -> dict[str, dict]:
+    """Read decisions.csv, keyed by id; parse valid maturity days as integers."""
+    decisions = {}
+    for row in _read_csv_rows(path):
+        maturity_day = row.get("maturity_day", "")
+        try:
+            row["maturity_day"] = int(maturity_day)
+        except ValueError:
+            row["maturity_day"] = maturity_day
+        decisions[row.get("id", "")] = row
+    return decisions
 
 
 def load_events(path: Path) -> list[dict]:
-    """Read events.csv and return a list of raw event dicts (input order kept).
-
-    Columns: event_id, decision_id, day, type, value, evidence, note.
-    TODO: strip whitespace; do NOT interpret the `note` field.
-    """
-    raise NotImplementedError
+    """Read trimmed event rows in input order without interpreting their values."""
+    return _read_csv_rows(path)
 
 
 def dedupe(events: list[dict]) -> list[dict]:
